@@ -950,7 +950,7 @@
       <div class="modal-eyebrow">Étape finale</div>
       <h2 class="modal-title">Soumets ton vote</h2>
       <p class="modal-text">
-        Dis-nous juste qui tu es. L'email est optionnel — utile seulement si tu veux qu'on te dise quelles œuvres ont été retenues pour l'expo.
+        Dis-nous juste qui tu es — ton nom ou un pseudo, comme tu veux.
       </p>
       <div class="vote-summary">
         <div class="vote-summary-label">Ta sélection</div>
@@ -960,10 +960,6 @@
         <label for="voter-name">Nom ou pseudo</label>
         <input type="text" id="voter-name" required autocomplete="name">
       </div>
-      <div class="field">
-        <label for="voter-email">Email <span style="color: var(--label-light); font-weight: 400; letter-spacing: 0.1em;">(optionnel)</span></label>
-        <input type="email" id="voter-email" autocomplete="email">
-      </div>
       <div class="modal-actions">
         <button class="btn-primary" id="modal-submit">Envoyer mon vote</button>
         <button class="btn-secondary" id="modal-cancel">Continuer à voter</button>
@@ -972,15 +968,30 @@
 
     <div id="modal-success" style="display:none">
       <div class="modal-eyebrow">Merci&thinsp;!</div>
-      <h2 class="modal-title">Ton vote est prêt à partir</h2>
-      <p class="modal-text">
-        Choisis comment l'envoyer. Le plus simple est l'email — un brouillon va s'ouvrir, vérifie et clique sur envoyer.
-      </p>
-      <div class="modal-actions">
-        <button class="btn-primary" id="send-email">📧 Envoyer par email</button>
-        <button class="btn-secondary" id="copy-token">📋 Copier mon vote (texte)</button>
+
+      <!-- Affiché si le backend a marché -->
+      <div id="success-registered" style="display:none">
+        <h2 class="modal-title">Vote enregistré&thinsp;✓</h2>
+        <p class="modal-text">
+          Ton vote a été comptabilisé. Tu peux fermer cette fenêtre, ou continuer à modifier ta sélection — tu peux re-soumettre, ça écrasera ton vote précédent.
+        </p>
+        <div class="modal-actions">
+          <button class="btn-primary" id="success-close">Fermer</button>
+        </div>
       </div>
-      <div class="vote-token" id="vote-token" style="display:none"></div>
+
+      <!-- Affiché si pas de backend ou backend en panne -->
+      <div id="success-fallback" style="display:none">
+        <h2 class="modal-title">Ton vote est prêt à partir</h2>
+        <p class="modal-text">
+          Choisis comment l'envoyer. Le plus simple est l'email — un brouillon va s'ouvrir, vérifie et clique sur envoyer.
+        </p>
+        <div class="modal-actions">
+          <button class="btn-primary" id="send-email">📧 Envoyer par email</button>
+          <button class="btn-secondary" id="copy-token">📋 Copier mon vote (texte)</button>
+        </div>
+        <div class="vote-token" id="vote-token" style="display:none"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -997,12 +1008,12 @@
 // =================================================================
 
 const CONFIG = {
-  ADMIN_EMAIL: 'aloya3@gmail.com',
+  ADMIN_EMAIL: 'votre-email@example.com',
   IMAGE_BASE: 'https://www.interlope.biz/koobcat/',
   MIN_VOTES: 5,
   MAX_VOTES: 25,
   DEFAULT_CATEGORY: 'architectoon',
-  BACKEND_URL: ''
+  BACKEND_URL: 'https://script.google.com/macros/s/AKfycby0YJ9I8QyKQQg42GbkpM9LSpfuxQ51_EPvlQMe6DTKI5nVfYHnkP9MfKDW8KNLhTw/exec'
 };
 
 // =================================================================
@@ -1313,7 +1324,6 @@ function openSubmitModal() {
 
   const savedVoter = JSON.parse(localStorage.getItem('architectoon-voter') || '{}');
   if (savedVoter.name) $('voter-name').value = savedVoter.name;
-  if (savedVoter.email) $('voter-email').value = savedVoter.email;
 }
 
 function closeSubmitModal() {
@@ -1323,24 +1333,21 @@ function closeSubmitModal() {
 
 $('modal-submit').onclick = async () => {
   const name = $('voter-name').value.trim();
-  const email = $('voter-email').value.trim();
   if (!name) {
     showToast('Nom ou pseudo requis');
     return;
   }
-  if (email && !/.+@.+\..+/.test(email)) {
-    showToast('Email invalide (laisse vide si tu préfères)');
-    return;
-  }
 
-  localStorage.setItem('architectoon-voter', JSON.stringify({ name, email }));
+  localStorage.setItem('architectoon-voter', JSON.stringify({ name }));
 
   const vote = {
-    voter: { name, email },
+    voter: { name, email: '' },
     timestamp: new Date().toISOString(),
     selections: [...state.selected]
   };
 
+  // Try backend first
+  let backendOK = false;
   if (CONFIG.BACKEND_URL) {
     try {
       await fetch(CONFIG.BACKEND_URL, {
@@ -1349,15 +1356,26 @@ $('modal-submit').onclick = async () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(vote)
       });
+      backendOK = true;
     } catch (err) {
-      console.warn('Backend POST failed, falling back to email', err);
+      console.warn('Backend POST a échoué, fallback sur email', err);
     }
   }
 
+  window.__currentVote = vote;
   $('modal-form').style.display = 'none';
   $('modal-success').style.display = '';
-  window.__currentVote = vote;
+
+  if (backendOK) {
+    $('success-registered').style.display = '';
+    $('success-fallback').style.display = 'none';
+  } else {
+    $('success-registered').style.display = 'none';
+    $('success-fallback').style.display = '';
+  }
 };
+
+$('success-close').onclick = closeSubmitModal;
 
 $('send-email').onclick = () => {
   const vote = window.__currentVote;
