@@ -950,7 +950,7 @@
       <div class="modal-eyebrow">Étape finale</div>
       <h2 class="modal-title">Soumets ton vote</h2>
       <p class="modal-text">
-        Avant d'envoyer, dis-nous qui tu es. Tes coordonnées servent uniquement à éviter les votes en double et à te tenir informé·e de l'expo.
+        Dis-nous juste qui tu es. L'email est optionnel — utile seulement si tu veux qu'on te dise quelles œuvres ont été retenues pour l'expo.
       </p>
       <div class="vote-summary">
         <div class="vote-summary-label">Ta sélection</div>
@@ -961,8 +961,8 @@
         <input type="text" id="voter-name" required autocomplete="name">
       </div>
       <div class="field">
-        <label for="voter-email">Adresse email</label>
-        <input type="email" id="voter-email" required autocomplete="email">
+        <label for="voter-email">Email <span style="color: var(--label-light); font-weight: 400; letter-spacing: 0.1em;">(optionnel)</span></label>
+        <input type="email" id="voter-email" autocomplete="email">
       </div>
       <div class="modal-actions">
         <button class="btn-primary" id="modal-submit">Envoyer mon vote</button>
@@ -1324,8 +1324,12 @@ function closeSubmitModal() {
 $('modal-submit').onclick = async () => {
   const name = $('voter-name').value.trim();
   const email = $('voter-email').value.trim();
-  if (!name || !email || !/.+@.+\..+/.test(email)) {
-    showToast('Nom et email requis');
+  if (!name) {
+    showToast('Nom ou pseudo requis');
+    return;
+  }
+  if (email && !/.+@.+\..+/.test(email)) {
+    showToast('Email invalide (laisse vide si tu préfères)');
     return;
   }
 
@@ -1363,7 +1367,7 @@ $('send-email').onclick = () => {
     `Vote pour la sélection des œuvres exposées`,
     ``,
     `Voteur : ${vote.voter.name}`,
-    `Email  : ${vote.voter.email}`,
+    `Email  : ${vote.voter.email || '(non fourni — voir adresse expéditeur)'}`,
     `Date   : ${new Date(vote.timestamp).toLocaleString('fr-FR')}`,
     `Total  : ${vote.selections.length} œuvres sélectionnées`,
     ``,
