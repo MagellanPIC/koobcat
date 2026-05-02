@@ -14,30 +14,21 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    /* White cube gallery */
     --wall: #FAFAF8;
     --wall-soft: #F4F2EE;
     --wall-line: rgba(0, 0, 0, 0.04);
-
-    /* IKEA-style frame: thin matte black */
     --frame: #1A1A1A;
     --frame-edge: #2A2A2A;
     --mat: #FFFFFF;
-
-    /* Curator's tape yellow */
     --accent: #F4C842;
     --accent-bright: #FFD93D;
     --accent-dark: #C29A26;
     --accent-glow: rgba(244, 200, 66, 0.45);
-
-    /* Type */
     --ink: #0E0E0E;
     --ink-soft: #2D2D2D;
     --label: #6B6B6B;
     --label-light: #303030;
     --paper: #FFFFFF;
-
-    /* Fonts */
     --ds-display: 'Fraunces', 'Times New Roman', serif;
     --ds-mono: 'DM Mono', 'Courier New', monospace;
     --ds-sans: 'Manrope', system-ui, sans-serif;
@@ -54,7 +45,6 @@
     overflow-x: hidden;
   }
 
-  /* Subtle wall texture - very faint paint roller variation */
   body::before {
     content: '';
     position: fixed;
@@ -66,7 +56,6 @@
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.025 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
-  /* Floor line - subtle horizon */
   body::after {
     content: '';
     position: fixed;
@@ -231,7 +220,6 @@
     z-index: 10;
   }
 
-  /* Yellow curator's sticker on selected */
   .artwork.selected::before {
     content: '✓';
     position: absolute;
@@ -260,7 +248,6 @@
     100% { transform: scale(1) rotate(0deg); }
   }
 
-  /* IKEA RIBBA-style frame: thin matte black */
   .frame {
     background: var(--frame);
     padding: 8px;
@@ -300,7 +287,6 @@
       0 24px 48px var(--accent-glow);
   }
 
-  /* Mat (passe-partout) - generous IKEA white mat */
   .mat {
     background: var(--mat);
     padding: 28px 28px 36px;
@@ -345,6 +331,19 @@
   @keyframes shimmer {
     0%   { background-position: -200% 0; }
     100% { background-position: 200% 0; }
+  }
+
+  /* ============ PORTRAIT (œuvres verticales) ============ */
+  /* Pour les fichiers PNG paysage qui contiennent une œuvre verticale au
+     centre avec des bandes grises sur les côtés. On force un ratio 3:4 et
+     object-fit: cover découpe automatiquement les bandes. */
+  .artwork.portrait .mat img,
+  .artwork.portrait .mat img.loading {
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+  }
+  .artwork.portrait .mat[data-loaded="false"]::after {
+    aspect-ratio: 3 / 4;
   }
 
   /* Plaque under each artwork */
@@ -468,12 +467,12 @@
     line-height: 1.3;
   }
 
-.counter-label .min-max {
-  display: block;
-  color: rgba(255, 255, 255, 0.7);    /* 0.35 → 0.7 */
-  font-size: 0.75rem;                 /* 0.58 → 0.75 */
-  margin-top: 2px;
-}
+  .counter-label .min-max {
+    display: block;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.75rem;
+    margin-top: 2px;
+  }
 
   .progress {
     width: 7rem;
@@ -555,12 +554,11 @@
       font-size: 0.7rem;
       letter-spacing: 0.15em;
     }
-/* mobile */
-.counter-label .min-max {
-  display: block;
-  font-size: 0.85rem;                 /* 0.6 → 0.85 */
-  margin-top: 3px;
-}
+    .counter-label .min-max {
+      display: block;
+      font-size: 0.85rem;
+      margin-top: 3px;
+    }
     .progress { width: 3rem; }
     .submit-btn {
       padding: 1.1rem 1.25rem;
@@ -1021,7 +1019,6 @@
     <div id="modal-success" style="display:none">
       <div class="modal-eyebrow">Merci&thinsp;!</div>
 
-      <!-- Affiché si le backend a marché -->
       <div id="success-registered" style="display:none">
         <h2 class="modal-title">Vote enregistré&thinsp;✓</h2>
         <p class="modal-text">
@@ -1032,7 +1029,6 @@
         </div>
       </div>
 
-      <!-- Affiché si pas de backend ou backend en panne -->
       <div id="success-fallback" style="display:none">
         <h2 class="modal-title">Ton vote est prêt à partir</h2>
         <p class="modal-text">
@@ -1056,7 +1052,7 @@
 
 <script>
 // =================================================================
-// CONFIGURATION — Édite ces valeurs avant déploiement
+// CONFIGURATION
 // =================================================================
 
 const CONFIG = {
@@ -1070,6 +1066,7 @@ const CONFIG = {
 
 // =================================================================
 // DONNÉES — Les 69 œuvres
+// portrait: true sur les œuvres dont le fichier est paysage mais l'œuvre verticale
 // =================================================================
 
 const ARTWORKS = [
@@ -1078,12 +1075,12 @@ const ARTWORKS = [
   { src: 'dessins/Architectoon.4.png',  category: 'architectoon' },
   { src: 'dessins/Architectoon.9.png',  category: 'architectoon' },
   { src: 'dessins/Architectoon.10.png', category: 'architectoon' },
-  { src: 'dessins/Architectoon.15.png', category: 'architectoon' },
+  { src: 'dessins/Architectoon.15.png', category: 'architectoon', portrait: true },
   { src: 'dessins/Architectoon.18.png', category: 'architectoon' },
   { src: 'dessins/Architectoon.22.png', category: 'architectoon' },
   { src: 'dessins/Architectoon.23.png', category: 'architectoon' },
   { src: 'dessins/Architectoon.24.png', category: 'architectoon' },
-  { src: 'dessins/Architectoon.29.png', category: 'architectoon' },
+  { src: 'dessins/Architectoon.29.png', category: 'architectoon', portrait: true },
   { src: 'dessins/Architectoon.30.png', category: 'architectoon' },
   { src: 'dessins/Architectoon.31.png', category: 'architectoon' },
   { src: 'dessins/Architectoon.32.png', category: 'architectoon' },
@@ -1114,10 +1111,10 @@ const ARTWORKS = [
   { src: 'dessins/Sketches.112.PNG',    category: 'odditorium' },
   { src: 'dessins/Sketches.114.png',    category: 'odditorium' },
   { src: 'dessins/Sketches.115.PNG',    category: 'odditorium' },
-  { src: 'dessins/Sketches.116.PNG',    category: 'odditorium' },
+  { src: 'dessins/Sketches.116.PNG',    category: 'odditorium', portrait: true },
   { src: 'dessins/Sketches.117.PNG',    category: 'odditorium' },
   { src: 'dessins/Sketches.119.PNG',    category: 'odditorium' },
-  { src: 'dessins/Sketches.1199.PNG',   category: 'odditorium' },
+  { src: 'dessins/Sketches.1199.PNG',   category: 'odditorium', portrait: true },
   { src: 'dessins/IMG_0073.PNG',        category: 'odditorium' },
   { src: 'dessins/IMG_0147.png',        category: 'odditorium' },
   { src: 'dessins/IMG_0149.png',        category: 'odditorium' },
@@ -1212,7 +1209,9 @@ function renderGallery() {
     const totalNum = items.length.toString().padStart(2, '0');
 
     const card = document.createElement('article');
-    card.className = 'artwork' + (isSel ? ' selected' : '');
+    card.className = 'artwork'
+      + (isSel ? ' selected' : '')
+      + (art.portrait ? ' portrait' : '');
     card.innerHTML = `
       <div class="frame">
         <div class="mat" data-loaded="false">
@@ -1391,7 +1390,6 @@ $('modal-submit').onclick = async () => {
     return;
   }
 
-  // État de chargement : désactiver bouton + spinner
   submitBtn.disabled = true;
   submitBtn.innerHTML = '<span class="spinner"></span>Envoi en cours…';
 
@@ -1403,7 +1401,6 @@ $('modal-submit').onclick = async () => {
     selections: [...state.selected]
   };
 
-  // Try backend first
   let backendOK = false;
   if (CONFIG.BACKEND_URL) {
     try {
@@ -1431,7 +1428,6 @@ $('modal-submit').onclick = async () => {
     $('success-fallback').style.display = '';
   }
 
-  // Réinitialiser le bouton pour la prochaine fois
   submitBtn.disabled = false;
   submitBtn.innerHTML = 'Envoyer mon vote';
 };
