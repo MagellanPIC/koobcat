@@ -215,7 +215,7 @@
     .gallery {
       grid-template-columns: 1fr;
       gap: 3.5rem 1rem;
-      padding: 2rem 1.25rem 12rem;
+      padding: 2rem 1.25rem 14rem;
     }
   }
 
@@ -320,14 +320,15 @@
     display: block;
     width: 100%;
     height: auto;
-    object-fit: cover;
     background: #f0f0f0;
-    min-height: 180px;
     transition: opacity 0.4s ease;
     position: relative;
   }
 
-  .mat img.loading { opacity: 0; }
+  .mat img.loading {
+    opacity: 0;
+    aspect-ratio: 4 / 3;
+  }
   .mat img.loaded  { opacity: 1; }
 
   .mat[data-loaded="false"]::after {
@@ -338,6 +339,7 @@
     background-size: 200% 100%;
     animation: shimmer 1.4s infinite;
     z-index: 0;
+    aspect-ratio: 4 / 3;
   }
 
   @keyframes shimmer {
@@ -370,17 +372,22 @@
     cursor: pointer;
     padding: 0.25rem;
     color: var(--label-light);
-    opacity: 0;
-    transition: opacity 0.2s, color 0.2s;
+    transition: color 0.2s;
     margin-left: auto;
     font-size: 0.62rem;
     letter-spacing: 0.18em;
     font-family: var(--ds-mono);
     text-transform: uppercase;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    text-decoration-color: rgba(0, 0, 0, 0.15);
   }
 
-  .artwork:hover .plaque-zoom { opacity: 1; }
-  .plaque-zoom:hover { color: var(--ink); }
+  .plaque-zoom:hover {
+    color: var(--ink);
+    text-decoration-color: var(--ink);
+  }
 
   .plaque-marker {
     width: 0.95rem;
@@ -533,14 +540,41 @@
 
   @media (max-width: 640px) {
     .control-bar {
-      gap: 0.85rem;
-      padding: 0.85rem 1rem;
-      bottom: 1rem;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      transform: none;
+      max-width: none;
+      width: 100%;
+      padding: 1rem 1.25rem calc(1.1rem + env(safe-area-inset-bottom, 0));
+      gap: 1rem;
+      border-top: 3px solid var(--accent);
     }
-    .counter-current { font-size: 1.85rem; }
-    .progress { width: 4rem; }
-    .submit-btn { padding: 0.75rem 1rem; font-size: 0.62rem; letter-spacing: 0.18em; }
-    .counter-label .min-max { display: none; }
+    .counter-current { font-size: 2.5rem; }
+    .counter-label {
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+    }
+    .counter-label .min-max {
+      display: block;
+      font-size: 0.6rem;
+      margin-top: 2px;
+    }
+    .progress { width: 3rem; }
+    .submit-btn {
+      padding: 1.1rem 1.25rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.18em;
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .progress { display: none; }
+    .control-bar { gap: 0.85rem; }
+    .counter-current { font-size: 2.2rem; }
+    .submit-btn { padding: 1rem 0.85rem; font-size: 0.72rem; }
   }
 
   /* ============ LIGHTBOX ============ */
@@ -844,6 +878,23 @@
     overflow-y: auto;
     line-height: 1.5;
     border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+
+  /* ============ SPINNER ============ */
+  .spinner {
+    display: inline-block;
+    width: 0.85rem;
+    height: 0.85rem;
+    border: 2px solid rgba(250, 246, 236, 0.25);
+    border-top-color: var(--paper);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: -0.15rem;
+    margin-right: 0.6rem;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   /* ============ TOAST ============ */
@@ -1332,11 +1383,16 @@ function closeSubmitModal() {
 }
 
 $('modal-submit').onclick = async () => {
+  const submitBtn = $('modal-submit');
   const name = $('voter-name').value.trim();
   if (!name) {
     showToast('Nom ou pseudo requis');
     return;
   }
+
+  // État de chargement : désactiver bouton + spinner
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<span class="spinner"></span>Envoi en cours…';
 
   localStorage.setItem('architectoon-voter', JSON.stringify({ name }));
 
@@ -1373,6 +1429,10 @@ $('modal-submit').onclick = async () => {
     $('success-registered').style.display = 'none';
     $('success-fallback').style.display = '';
   }
+
+  // Réinitialiser le bouton pour la prochaine fois
+  submitBtn.disabled = false;
+  submitBtn.innerHTML = 'Envoyer mon vote';
 };
 
 $('success-close').onclick = closeSubmitModal;
