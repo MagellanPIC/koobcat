@@ -345,9 +345,6 @@
   }
 
   /* ============ PORTRAIT (œuvres verticales) ============ */
-  /* Pour les fichiers PNG paysage qui contiennent une œuvre verticale au
-     centre avec des bandes grises sur les côtés. On force un ratio 3:4 et
-     object-fit: cover découpe automatiquement les bandes. */
   .artwork.portrait .mat img,
   .artwork.portrait .mat img.loading {
     aspect-ratio: 3 / 4;
@@ -494,6 +491,42 @@
     letter-spacing: 0;
     text-transform: none;
     font-size: 1rem;
+  }
+
+  /* ============ "TRIÉ PAR POPULARITÉ" BANDEAU ============ */
+  .sort-status {
+    grid-column: 1 / -1;
+    text-align: center;
+    font-family: var(--ds-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--label);
+    padding: 0.5rem 1rem 0;
+    margin-bottom: -2rem;
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+
+  .sort-status.visible {
+    opacity: 1;
+  }
+
+  .sort-status .dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    background: var(--accent);
+    border-radius: 50%;
+    margin-right: 0.6rem;
+    vertical-align: 1px;
+    box-shadow: 0 0 0 3px var(--accent-glow);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 3px var(--accent-glow); }
+    50% { box-shadow: 0 0 0 6px rgba(244, 200, 66, 0.15); }
   }
 
   /* ============ FLOATING CONTROL BAR ============ */
@@ -1136,17 +1169,21 @@ const CONFIG = {
   MIN_VOTES: 5,
   MAX_VOTES: 25,
   DEFAULT_CATEGORY: 'architectoon',
-  BACKEND_URL: 'https://script.google.com/macros/s/AKfycby0YJ9I8QyKQQg42GbkpM9LSpfuxQ51_EPvlQMe6DTKI5nVfYHnkP9MfKDW8KNLhTw/exec'
+  BACKEND_URL: 'https://script.google.com/macros/s/AKfycby0YJ9I8QyKQQg42GbkpM9LSpfuxQ51_EPvlQMe6DTKI5nVfYHnkP9MfKDW8KNLhTw/exec',
+
+  // Tri dynamique par rang depuis le sheet
+  USE_LIVE_RANKING: true,
+  RANKING_CACHE_MIN: 2,        // cache local en minutes
+  RANKING_TIMEOUT_MS: 4000     // timeout du fetch
 };
 
 // =================================================================
-// DONNÉES — Les 78 œuvres
+// DONNÉES — Les œuvres (l'ordre ici sert de fallback si le sheet ne répond pas)
 // portrait: true sur les œuvres dont le fichier est paysage mais l'œuvre verticale
 // =================================================================
 
 const ARTWORKS = [
-  // ARCHITECTOON (28) — ordre par vendabilité (Tier S → Tier C)
-  // Tier S — Coups de cœur grand public
+  // ARCHITECTOON
    { src: 'dessins/Architectoon.309.png', category: 'architectoon' },
    { src: 'dessins/Architectoon.42.png',  category: 'architectoon' },
    { src: 'dessins/Local.3.png',          category: 'architectoon' },
@@ -1172,7 +1209,7 @@ const ARTWORKS = [
   { src: 'dessins/Architectoon.185.png', category: 'architectoon' },
 
   { src: 'dessins/Architectoon.9.png',   category: 'architectoon' },
-  
+
   { src: 'dessins/Architectoon.46.png',  category: 'architectoon' },
 
 
@@ -1189,7 +1226,7 @@ const ARTWORKS = [
  // { src: 'dessins/Architectoon.32.png',  category: 'architectoon' },
   { src: 'dessins/Architectoon.35.png',  category: 'architectoon' },
 
-  // ODDITORIUM (31)
+  // ODDITORIUM
   //{ src: 'dessins/Sketches.69.png',     category: 'odditorium' },
   { src: 'dessins/Sketches.80.png',     category: 'odditorium' },
   { src: 'dessins/Sketches.81.png',     category: 'odditorium' },
@@ -1222,7 +1259,7 @@ const ARTWORKS = [
  // { src: 'dessins/photo141.PNG',        category: 'odditorium' },
   { src: 'dessins/robofabrik.jpg',      category: 'odditorium' },
 
-  // SNAPSHOOTS (19)
+  // SNAPSHOOTS
   { src: 'dessins/IMG_0012.PNG', category: 'snapshoots' },
   { src: 'dessins/IMG_0049.PNG', category: 'snapshoots' },
   { src: 'dessins/IMG_0050.PNG', category: 'snapshoots' },
@@ -1257,7 +1294,9 @@ const CATEGORIES = [
 const state = {
   currentCategory: CONFIG.DEFAULT_CATEGORY,
   selected: new Set(),
-  lightboxIndex: -1
+  lightboxIndex: -1,
+  rankings: null,        // { 'Architectoon.1.png': 5, ... } ou null
+  rankingsLive: false    // true si on a réussi à charger depuis le sheet
 };
 
 try {
@@ -1267,6 +1306,87 @@ try {
 
 function saveState() {
   localStorage.setItem('architectoon-vote-selected', JSON.stringify([...state.selected]));
+}
+
+// =================================================================
+// LIVE RANKING (lecture du Sheet via Apps Script doGet)
+// =================================================================
+
+const RANK_CACHE_KEY = 'architectoon-rankings-v1';
+
+function loadCachedRankings() {
+  try {
+    const raw = localStorage.getItem(RANK_CACHE_KEY);
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    const ageMs = Date.now() - cached.timestamp;
+    if (ageMs > CONFIG.RANKING_CACHE_MIN * 60 * 1000) return null;
+    return cached.rankings;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveCachedRankings(rankings) {
+  try {
+    localStorage.setItem(RANK_CACHE_KEY, JSON.stringify({
+      timestamp: Date.now(),
+      rankings: rankings
+    }));
+  } catch (e) {}
+}
+
+async function fetchRankings() {
+  if (!CONFIG.USE_LIVE_RANKING || !CONFIG.BACKEND_URL) return null;
+
+  // Cache d'abord
+  const cached = loadCachedRankings();
+  if (cached) return cached;
+
+  // Sinon GET sur Apps Script
+  try {
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), CONFIG.RANKING_TIMEOUT_MS);
+
+    const res = await fetch(CONFIG.BACKEND_URL, { signal: ctrl.signal });
+    clearTimeout(timeout);
+
+    if (!res.ok) return null;
+    const data = await res.json();
+
+    if (data && data.rankings) {
+      saveCachedRankings(data.rankings);
+      return data.rankings;
+    }
+  } catch (e) {
+    console.warn('Fetch rankings échoué (on garde l\'ordre statique)', e);
+  }
+  return null;
+}
+
+function applyRankings(rankings) {
+  // rankings = { 'Architectoon.1.png': 5, ... }  — chiffre = rang (1 = plus voté)
+  // Tri à l'intérieur de chaque catégorie. Les œuvres avec un rang remontent
+  // (par rang croissant), celles sans rang (0 votes) gardent leur ordre statique.
+
+  const originalIndex = new Map();
+  ARTWORKS.forEach((a, i) => originalIndex.set(a.src, i));
+
+  ARTWORKS.sort((a, b) => {
+    if (a.category !== b.category) {
+      return originalIndex.get(a.src) - originalIndex.get(b.src);
+    }
+
+    const fileA = a.src.replace(/^dessins\//, '');
+    const fileB = b.src.replace(/^dessins\//, '');
+    const rankA = rankings[fileA];
+    const rankB = rankings[fileB];
+
+    if (rankA != null && rankB != null) return rankA - rankB;
+    if (rankA != null) return -1;
+    if (rankB != null) return 1;
+    return originalIndex.get(a.src) - originalIndex.get(b.src);
+  });
 }
 
 // =================================================================
@@ -1301,6 +1421,14 @@ function renderGallery() {
   gallery.innerHTML = '';
   const items = getFilteredArtworks();
 
+  // Bandeau "trié par popularité" si rangs chargés
+  if (state.rankingsLive) {
+    const status = document.createElement('div');
+    status.className = 'sort-status visible';
+    status.innerHTML = '<span class="dot"></span>Trié par popularité du vote';
+    gallery.appendChild(status);
+  }
+
   items.forEach((art, i) => {
     const isSel = state.selected.has(art.src);
     const num = (i + 1).toString().padStart(2, '0');
@@ -1310,6 +1438,7 @@ function renderGallery() {
     card.className = 'artwork'
       + (isSel ? ' selected' : '')
       + (art.portrait ? ' portrait' : '');
+    card.dataset.src = art.src;
     card.innerHTML = `
       <div class="frame">
         <div class="mat" data-loaded="false">
@@ -1400,12 +1529,9 @@ function toggleSelection(src) {
     state.selected.add(src);
   }
   saveState();
-  const items = getFilteredArtworks();
-  const idx = items.findIndex(a => a.src === src);
-  if (idx >= 0) {
-    const cards = document.querySelectorAll('.artwork');
-    cards[idx]?.classList.toggle('selected', state.selected.has(src));
-  }
+  // On retrouve la carte par son data-src (robuste même avec bandeau de tri)
+  const card = document.querySelector(`.artwork[data-src="${CSS.escape(src)}"]`);
+  if (card) card.classList.toggle('selected', state.selected.has(src));
   renderTabs();
   updateCounter();
 }
@@ -1532,6 +1658,8 @@ $('modal-submit').onclick = async () => {
         body: JSON.stringify(vote)
       });
       backendOK = true;
+      // Invalider le cache pour rafraîchir les rangs au prochain reload
+      localStorage.removeItem(RANK_CACHE_KEY);
     } catch (err) {
       console.warn('Backend POST a échoué, fallback sur email', err);
     }
@@ -1608,9 +1736,23 @@ function showToast(msg) {
 // INIT
 // =================================================================
 
-renderTabs();
-renderGallery();
-updateCounter();
+async function init() {
+  // 1. Render initial avec ordre statique (rapide, pas de blocage)
+  renderTabs();
+  renderGallery();
+  updateCounter();
+
+  // 2. En tâche de fond, fetch les rangs depuis le sheet
+  const rankings = await fetchRankings();
+  if (rankings && Object.keys(rankings).length > 0) {
+    state.rankings = rankings;
+    state.rankingsLive = true;
+    applyRankings(rankings);
+    renderGallery();  // re-render avec le nouvel ordre
+  }
+}
+
+init();
 </script>
 
 </body>
